@@ -49,7 +49,7 @@ Examples:
 func SubscriptionsPricePointsListCommand() *ffcli.Command {
 	fs := flag.NewFlagSet("price-points list", flag.ExitOnError)
 
-	subscriptionID := fs.String("subscription-id", "", "Subscription ID, product ID, or exact current name")
+	subscriptionID := shared.BindResourceIDFlag(fs, "subscription-id", "subscriptions", "Subscription ID, product ID, or exact current name")
 	appID := addSubscriptionLookupAppFlag(fs)
 	territory := fs.String("territory", "", "Filter by territory (accepts alpha-2, alpha-3, or exact English country name) to reduce results")
 	price := fs.String("price", "", "Filter by exact customer price (e.g., 4.99)")
@@ -391,7 +391,7 @@ func buildSubscriptionPricePointEqualizationsCommand(name string, adjusted bool)
 	fs := flag.NewFlagSet(flagSetName, flag.ExitOnError)
 	pricePointID := fs.String("price-point-id", "", "Subscription price point ID")
 	territory := fs.String("territory", "", "Filter by territory IDs or names (comma-separated)")
-	subscriptionIDs := fs.String("subscription-id", "", "Filter by subscription IDs (comma-separated)")
+	subscriptionIDs := shared.BindResourceIDFlag(fs, "subscription-id", "subscriptions", "Filter by subscription IDs (comma-separated)")
 	upfrontPricePointIDUsage := "Filter by upfront price point IDs (comma-separated)"
 	if adjusted {
 		upfrontPricePointIDUsage = "Required upfront price point IDs (comma-separated)"
