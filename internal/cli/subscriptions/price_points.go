@@ -391,7 +391,10 @@ func buildSubscriptionPricePointEqualizationsCommand(name string, adjusted bool)
 	fs := flag.NewFlagSet(flagSetName, flag.ExitOnError)
 	pricePointID := fs.String("price-point-id", "", "Subscription price point ID")
 	territory := fs.String("territory", "", "Filter by territory IDs or names (comma-separated)")
-	subscriptionIDs := shared.BindResourceIDFlag(fs, "subscription-id", "subscriptions", "Filter by subscription IDs (comma-separated)")
+	// Comma-separated ID filters stay bare-ID: the self-link normalizer takes a
+	// single resource URL, so binding it here would accept one link but reject a
+	// list of them with a message about single resources.
+	subscriptionIDs := fs.String("subscription-id", "", "Filter by subscription IDs (comma-separated)")
 	upfrontPricePointIDUsage := "Filter by upfront price point IDs (comma-separated)"
 	if adjusted {
 		upfrontPricePointIDUsage = "Required upfront price point IDs (comma-separated)"

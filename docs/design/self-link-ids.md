@@ -25,15 +25,17 @@ resource's API self-link. It adds no command, no flag, and no output change.
   Query strings and fragments are ignored.
 - When `resourceType` is non-empty and `<type>` differs, the value is rejected
   with a message naming both types, for example
-  `expected a builds self-link, got appStoreVersions`.
+  `expected a self-link of type builds, got appStoreVersions`.
 - A URL on another host, with a different path shape (including
   `/relationships/...` and related-resource paths), or with an empty `<id>` is
   rejected with a message describing the accepted shape.
 
 `shared.BindResourceIDFlag(fs, name, resourceType, usage) *string` registers a
-string flag backed by the normalizer. Rejections surface as flag parse
-failures, so they print `Error: invalid value "<url>" for flag -<name>: <reason>`
-on stderr and exit with code 2 before authentication or any network call.
+string flag backed by the normalizer; the value also implements `flag.Getter`
+like the other custom flag values in that package. Rejections surface as flag
+parse failures, so they print
+`Error: invalid value "<url>" for flag -<name>: <reason>` on stderr and exit
+with code 2 before authentication or any network call.
 
 `shared.ResolveAppID` also normalizes `apps` self-links for the explicit
 `--app` value, `ASC_APP_ID`, and the configured app ID, so every command that
@@ -57,7 +59,33 @@ reject it at parse time.
 | `--localization-id` | `localizations search-keywords ...` | `appStoreVersionLocalizations` |
 | `--info-id` | `apps info ...` | `appInfos` |
 | `--subscription-id`, `--id` | `subscriptions view/update/delete`, offers, pricing | `subscriptions` |
+| `--id`, `--iap-id` | `iap view/update/delete`, versions, prices, offers, availability, content, review screenshots | `inAppPurchases` |
+| `--version-id` | `iap versions ...`, `iap versions images/localizations ...` | `inAppPurchaseVersions` |
 | `--id`, `--bundle` | `bundle-ids view/update/delete`, capabilities, relationships | `bundleIds` |
+
+### Selector-style flags
+
+`--subscription-id` and `--iap-id` on most `subscriptions` and `iap`
+subcommands accept "ID, product ID, or exact current name". For those flags
+the extracted `<id>` then follows exactly the path a pasted bare ID takes:
+`shared.SelectorNeedsLookup` treats a numeric value as a stable ASC ID (the
+resolvers already define numeric as the ID shape for these resources, and
+App Store Connect issues numeric IDs for in-app purchases and subscriptions),
+so it is used directly, or resolved and then used directly if the
+app-scoped lookup misses. A self-link therefore never introduces a failure
+mode that the equivalent bare ID does not already have; provenance is not
+carried past flag parsing on purpose, so callers keep a plain `*string`.
+
+### Excluded on purpose
+
+- Comma-separated ID filters, such as `--subscription-id` on
+  `subscriptions price-points equalizations` and
+  `adjusted-equalizations`. The normalizer takes one resource URL, so binding
+  it to a CSV flag would accept a single link but reject a list of them with a
+  message about single resources. A per-element variant is follow-up work.
+- `--bundle-id` and `--iap-id` under `asc web`: those name Developer Portal
+  and Iris resource IDs, not App Store Connect API resources, so there is no
+  self-link shape to accept.
 
 Remaining `fs.String` ID flags keep bare-ID behavior; they can adopt
 `BindResourceIDFlag` one package at a time.

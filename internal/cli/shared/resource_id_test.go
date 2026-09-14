@@ -41,7 +41,7 @@ func TestResourceIDFromValue(t *testing.T) {
 			name:         "wrong type",
 			value:        "https://api.appstoreconnect.apple.com/v1/appStoreVersions/abc",
 			resourceType: "builds",
-			wantErr:      "expected a builds self-link, got appStoreVersions",
+			wantErr:      "expected a self-link of type builds, got appStoreVersions",
 		},
 		{
 			name:         "relationship path",
@@ -140,7 +140,7 @@ func TestBindResourceIDFlag(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected parse error")
 		}
-		if !strings.Contains(err.Error(), "expected a builds self-link, got apps") {
+		if !strings.Contains(err.Error(), "expected a self-link of type builds, got apps") {
 			t.Fatalf("error = %q", err.Error())
 		}
 	})

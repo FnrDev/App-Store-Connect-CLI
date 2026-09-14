@@ -178,7 +178,7 @@ func TestSelfLinkWrongTypeIsUsageErrorBeforeAuthOrRequest(t *testing.T) {
 			args:    []string{"builds", "info"},
 			flag:    "build-id",
 			value:   selfLinkTestBase + "/v1/apps/123",
-			wantErr: "expected a builds self-link, got apps",
+			wantErr: "expected a self-link of type builds, got apps",
 		},
 		{
 			name:    "versions view rejects relationship path",
@@ -186,6 +186,27 @@ func TestSelfLinkWrongTypeIsUsageErrorBeforeAuthOrRequest(t *testing.T) {
 			flag:    "version-id",
 			value:   selfLinkTestBase + "/v1/appStoreVersions/version-1/relationships/build",
 			wantErr: "/v1/<type>/<id>",
+		},
+		{
+			name:    "iap view rejects subscriptions link",
+			args:    []string{"iap", "view"},
+			flag:    "id",
+			value:   selfLinkTestBase + "/v1/subscriptions/sub-1",
+			wantErr: "expected a self-link of type inAppPurchases, got subscriptions",
+		},
+		{
+			name:    "iap promoted-purchases view rejects subscriptions link",
+			args:    []string{"iap", "promoted-purchases", "view"},
+			flag:    "iap-id",
+			value:   selfLinkTestBase + "/v1/subscriptions/sub-1",
+			wantErr: "expected a self-link of type inAppPurchases, got subscriptions",
+		},
+		{
+			name:    "iap versions links versions rejects version link",
+			args:    []string{"iap", "versions", "links", "versions"},
+			flag:    "iap-id",
+			value:   selfLinkTestBase + "/v1/inAppPurchaseVersions/ver-1",
+			wantErr: "expected a self-link of type inAppPurchases, got inAppPurchaseVersions",
 		},
 		{
 			name:    "testflight groups view rejects other host",

@@ -43,7 +43,7 @@ func ResourceIDFromValue(value, resourceType string) (string, error) {
 
 	linkType, id := segments[1], segments[2]
 	if resourceType != "" && linkType != resourceType {
-		return "", fmt.Errorf("expected a %s self-link, got %s", resourceType, linkType)
+		return "", fmt.Errorf("expected a self-link of type %s, got %s", resourceType, linkType)
 	}
 	return id, nil
 }
