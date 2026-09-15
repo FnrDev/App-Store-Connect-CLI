@@ -170,6 +170,17 @@ func TestBuildSigningPlanRejectsOversizedXCConfig(t *testing.T) {
 }
 
 func TestBuildSigningPlanRejectsOversizedUnselectedXCConfigBeforeArtifactPublication(t *testing.T) {
+	if testing.Short() {
+		// The pre-commit hook and PR checks run `go test -short`. Building a
+		// source graph past the plan's 4096-file bound costs thousands of
+		// rooted reads, stats, and authorizations, which is minutes of work on
+		// a contended host. `make test` and the main-branch workflow still run
+		// it at full depth, and the shared budget plus the graph bound keep
+		// in-memory coverage under -short in
+		// TestXCConfigCollectorSharesUniqueBudgetAcrossRoots and
+		// TestXCConfigCollectorBoundsSigningSourceGraph.
+		t.Skip("skipping the multi-thousand-file signing plan source graph in short mode")
+	}
 	project := writeStructuredVersionProject(t, false)
 	projectRoot := filepath.Dir(project)
 	configDir := filepath.Join(projectRoot, "Configs")
@@ -221,6 +232,17 @@ func TestBuildSigningPlanRejectsOversizedUnselectedXCConfigBeforeArtifactPublica
 }
 
 func TestBuildSigningPlanSharesXCConfigBudgetAcrossConfigurationRoots(t *testing.T) {
+	if testing.Short() {
+		// The pre-commit hook and PR checks run `go test -short`. Building a
+		// source graph past the plan's 4096-file bound costs thousands of
+		// rooted reads, stats, and authorizations, which is minutes of work on
+		// a contended host. `make test` and the main-branch workflow still run
+		// it at full depth, and the shared budget plus the graph bound keep
+		// in-memory coverage under -short in
+		// TestXCConfigCollectorSharesUniqueBudgetAcrossRoots and
+		// TestXCConfigCollectorBoundsSigningSourceGraph.
+		t.Skip("skipping the multi-thousand-file signing plan source graph in short mode")
+	}
 	project := writeStructuredVersionProject(t, false)
 	projectRoot := filepath.Dir(project)
 	configDir := filepath.Join(projectRoot, "Configs")
