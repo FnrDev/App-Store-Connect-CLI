@@ -143,9 +143,12 @@ func sendHTTPEventToEndpoint(ev Event, endpointURL string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
-			resp.StatusCode != http.StatusRequestTimeout &&
-			resp.StatusCode != http.StatusTooManyRequests {
+		// Redirects are not followed, so 3xx is a misconfigured endpoint, not
+		// a transient fault. Leaving those records retryable wedges the spool.
+		if (resp.StatusCode >= 300 && resp.StatusCode < 400) ||
+			(resp.StatusCode >= 400 && resp.StatusCode < 500 &&
+				resp.StatusCode != http.StatusRequestTimeout &&
+				resp.StatusCode != http.StatusTooManyRequests) {
 			return &permanentDeliveryError{statusCode: resp.StatusCode}
 		}
 		return fmt.Errorf("unexpected telemetry status %d", resp.StatusCode)

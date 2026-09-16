@@ -64,20 +64,46 @@ func (store spoolStore) append(record spoolRecord) error {
 		return err
 	}
 	defer unlock()
-	if err := store.removeOrphanedTempFilesUnlocked(); err != nil {
-		return err
-	}
+	return store.appendUnlocked(encoded)
+}
 
-	records, _, err := store.readUnlocked()
-	if err != nil {
-		return err
+// appendUnlocked extends the spool by one record. Trimming and crash recovery
+// stay on the worker snapshot path so a command does not rewrite the queue.
+func (store spoolStore) appendUnlocked(encoded []byte) error {
+	dir := filepath.Dir(store.path)
+	if err := ensureSecureTelemetryDirectory(dir); err != nil {
+		return fmt.Errorf("telemetry: failed to create spool directory: %w", err)
 	}
-	records = append(records, record)
-	records, err = store.trimToLimits(records)
+	file, err := openTelemetryFileForAppend(store.path)
 	if err != nil {
-		return err
+		return fmt.Errorf("telemetry: failed to open spool: %w", err)
 	}
-	return store.writeUnlocked(records)
+	defer file.Close()
+	if err := file.Chmod(0o600); err != nil {
+		return fmt.Errorf("telemetry: failed to secure spool: %w", err)
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("telemetry: failed to stat spool: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("telemetry: spool is not a regular file")
+	}
+	if info.Size() > 0 {
+		var last [1]byte
+		if _, err := file.ReadAt(last[:], info.Size()-1); err != nil {
+			return fmt.Errorf("telemetry: failed to read spool boundary: %w", err)
+		}
+		if last[0] != '\n' {
+			if _, err := file.Write([]byte{'\n'}); err != nil {
+				return fmt.Errorf("telemetry: failed to separate spool record: %w", err)
+			}
+		}
+	}
+	if _, err := file.Write(encoded); err != nil {
+		return fmt.Errorf("telemetry: failed to append spool record: %w", err)
+	}
+	return nil
 }
 
 func (store spoolStore) snapshot(limit int) ([]spoolRecord, error) {

@@ -38,6 +38,31 @@ func openStateFileForRead(path string) (*os.File, error) {
 	return openTelemetryFileForRead(path)
 }
 
+func openTelemetryFileForAppend(path string) (*os.File, error) {
+	pathPointer, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	handle, err := windows.CreateFile(
+		pathPointer,
+		windows.FILE_APPEND_DATA|windows.GENERIC_READ,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil,
+		windows.OPEN_ALWAYS,
+		windows.FILE_ATTRIBUTE_NORMAL,
+		0,
+	)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	file := os.NewFile(uintptr(handle), path)
+	if file == nil {
+		_ = windows.CloseHandle(handle)
+		return nil, &os.PathError{Op: "open", Path: path, Err: windows.ERROR_INVALID_HANDLE}
+	}
+	return file, nil
+}
+
 func openTelemetryFileForRead(path string) (*os.File, error) {
 	pathPointer, err := windows.UTF16PtrFromString(path)
 	if err != nil {

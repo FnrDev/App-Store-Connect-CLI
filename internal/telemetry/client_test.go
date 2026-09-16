@@ -280,6 +280,10 @@ func TestSendHTTPEventClassifiesPermanentCollectorRejections(t *testing.T) {
 		{name: "request timeout", statusCode: http.StatusRequestTimeout, wantPermanent: false},
 		{name: "rate limited", statusCode: http.StatusTooManyRequests, wantPermanent: false},
 		{name: "server error", statusCode: http.StatusInternalServerError, wantPermanent: false},
+		{name: "moved permanently", statusCode: http.StatusMovedPermanently, wantPermanent: true},
+		{name: "found", statusCode: http.StatusFound, wantPermanent: true},
+		{name: "temporary redirect", statusCode: http.StatusTemporaryRedirect, wantPermanent: true},
+		{name: "permanent redirect", statusCode: http.StatusPermanentRedirect, wantPermanent: true},
 	}
 
 	for _, test := range tests {

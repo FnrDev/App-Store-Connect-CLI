@@ -7,11 +7,41 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
 
 const spoolWriterHelperEnv = "ASC_TEST_TELEMETRY_SPOOL_WRITER"
+
+func TestSpoolAppendExtendsTheExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "telemetry-spool.jsonl")
+	store := testSpoolStore(path)
+	if err := store.append(testSpoolRecord("event-01")); err != nil {
+		t.Fatalf("append first event: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat spool: %v", err)
+	}
+	beforeInode := before.Sys().(*syscall.Stat_t).Ino
+
+	if err := store.append(testSpoolRecord("event-02")); err != nil {
+		t.Fatalf("append second event: %v", err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat appended spool: %v", err)
+	}
+	if after.Sys().(*syscall.Stat_t).Ino != beforeInode {
+		t.Fatal("append replaced the spool file instead of extending it")
+	}
+	encoded := mustEncodeSpoolRecord(t, testSpoolRecord("event-02"))
+	if after.Size() != before.Size()+int64(len(encoded)) {
+		t.Fatalf("appended size = %d, want %d", after.Size(), before.Size()+int64(len(encoded)))
+	}
+	assertSpoolEventIDs(t, store, "event-01", "event-02")
+}
 
 func TestSpoolEvictsOldestRecordsByCount(t *testing.T) {
 	store := testSpoolStore(filepath.Join(t.TempDir(), "telemetry-spool.jsonl"))
