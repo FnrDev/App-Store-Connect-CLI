@@ -86,14 +86,14 @@ func InspectIPA(data []byte, includeEntitlements, includeProfile bool) (IPAManif
 	}
 	var declared uint64
 	var main *zip.File
-	var nested []string
+	var nested []*zip.File
 	var profile *zip.File
 	for _, file := range reader.File {
 		if file.UncompressedSize64 > maxZipDeclaredBytes-declared {
 			return IPAManifest{Status: "unreadable"}, fmt.Errorf("IPA declared expansion exceeds the limit")
 		}
 		declared += file.UncompressedSize64
-		name := strings.TrimSuffix(strings.ReplaceAll(file.Name, "\\", "/"), "/")
+		name := zipMemberName(file.Name)
 		if file.FileInfo().IsDir() {
 			continue
 		}
@@ -102,7 +102,7 @@ func InspectIPA(data []byte, includeEntitlements, includeProfile bool) (IPAManif
 			continue
 		}
 		if isNestedInfoPlist(name) {
-			nested = append(nested, name)
+			nested = append(nested, file)
 		}
 		if isTopLevelEmbeddedProfile(name) {
 			profile = file
@@ -116,21 +116,17 @@ func InspectIPA(data []byte, includeEntitlements, includeProfile bool) (IPAManif
 		return IPAManifest{Status: "unreadable"}, err
 	}
 	manifest := manifestFromPlist(mainPlist)
-	for _, path := range nested {
-		for _, file := range reader.File {
-			if file.Name != path {
-				continue
-			}
-			parsed, err := readZipPlist(file)
-			if err != nil {
-				return manifest, fmt.Errorf("read %s: %w", path, err)
-			}
-			manifest.NestedBundles = append(manifest.NestedBundles, NestedBundle{
-				BundleID: parsed.BundleID,
-				Name:     firstNonEmpty(parsed.DisplayName, parsed.Name),
-				Path:     path,
-			})
+	for _, file := range nested {
+		path := zipMemberName(file.Name)
+		parsed, err := readZipPlist(file)
+		if err != nil {
+			return manifest, fmt.Errorf("read %s: %w", path, err)
 		}
+		manifest.NestedBundles = append(manifest.NestedBundles, NestedBundle{
+			BundleID: parsed.BundleID,
+			Name:     firstNonEmpty(parsed.DisplayName, parsed.Name),
+			Path:     path,
+		})
 	}
 	if profile != nil {
 		summary, entitlements, err := readEmbeddedProfile(profile)
@@ -170,6 +166,10 @@ func manifestFromPlist(parsed bundlePlist) IPAManifest {
 		MinimumOSVersion: firstNonEmpty(parsed.MinimumOSVersion, parsed.MinimumSystem),
 		Platforms:        platforms,
 	}
+}
+
+func zipMemberName(name string) string {
+	return strings.TrimSuffix(strings.ReplaceAll(name, "\\", "/"), "/")
 }
 
 func isTopLevelAppInfoPlist(name string) bool {

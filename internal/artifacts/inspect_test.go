@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
+	"hash/crc32"
 	"strconv"
 	"testing"
 
@@ -35,6 +36,23 @@ func TestInspectIPAReadsExtensionAndProfile(t *testing.T) {
 	}
 }
 
+func TestInspectIPAReadsNestedBundleWithBackslashSeparators(t *testing.T) {
+	ipa := storedZip(t, map[string][]byte{
+		`Payload\Demo.app\Info.plist`:                      plistXML(t, map[string]any{"CFBundleIdentifier": "com.example.demo"}),
+		`Payload\Demo.app\PlugIns\Widget.appex\Info.plist`: plistXML(t, map[string]any{"CFBundleIdentifier": "com.example.demo.widget", "CFBundleDisplayName": "Widget"}),
+	})
+	manifest, err := InspectIPA(ipa, false, false)
+	if err != nil && manifest.Status == "unreadable" {
+		t.Fatal(err)
+	}
+	if len(manifest.NestedBundles) != 1 || manifest.NestedBundles[0].BundleID != "com.example.demo.widget" {
+		t.Fatalf("nested = %+v err=%v", manifest.NestedBundles, err)
+	}
+	if manifest.NestedBundles[0].Path != "Payload/Demo.app/PlugIns/Widget.appex/Info.plist" {
+		t.Fatalf("path = %q", manifest.NestedBundles[0].Path)
+	}
+}
+
 func TestInspectIPAUnsignedReturnsMetadata(t *testing.T) {
 	ipa := zipArtifact(t, map[string][]byte{
 		"Payload/Demo.app/Info.plist": plistXML(t, map[string]any{"CFBundleIdentifier": "com.example.demo"}),
@@ -61,6 +79,54 @@ func TestInspectPKGReadsPackageInfo(t *testing.T) {
 	if len(manifest.BundleIDs) != 2 || manifest.BundleIDs[0] != "com.example.demo" {
 		t.Fatalf("bundle IDs = %#v", manifest.BundleIDs)
 	}
+}
+
+func storedZip(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	type entry struct {
+		name string
+		data []byte
+	}
+	ordered := make([]entry, 0, len(files))
+	for name, data := range files {
+		ordered = append(ordered, entry{name: name, data: data})
+	}
+	var body, directory bytes.Buffer
+	for _, item := range ordered {
+		crc := crc32.ChecksumIEEE(item.data)
+		local := make([]byte, 30)
+		binary.LittleEndian.PutUint32(local[0:4], 0x04034b50)
+		binary.LittleEndian.PutUint16(local[4:6], 20)
+		binary.LittleEndian.PutUint32(local[14:18], crc)
+		binary.LittleEndian.PutUint32(local[18:22], uint32(len(item.data)))
+		binary.LittleEndian.PutUint32(local[22:26], uint32(len(item.data)))
+		binary.LittleEndian.PutUint16(local[26:28], uint16(len(item.name)))
+		offset := body.Len()
+		body.Write(local)
+		body.WriteString(item.name)
+		body.Write(item.data)
+
+		central := make([]byte, 46)
+		binary.LittleEndian.PutUint32(central[0:4], 0x02014b50)
+		binary.LittleEndian.PutUint16(central[4:6], 20)
+		binary.LittleEndian.PutUint16(central[6:8], 20)
+		binary.LittleEndian.PutUint32(central[16:20], crc)
+		binary.LittleEndian.PutUint32(central[20:24], uint32(len(item.data)))
+		binary.LittleEndian.PutUint32(central[24:28], uint32(len(item.data)))
+		binary.LittleEndian.PutUint16(central[28:30], uint16(len(item.name)))
+		binary.LittleEndian.PutUint32(central[42:46], uint32(offset))
+		directory.Write(central)
+		directory.WriteString(item.name)
+	}
+	var end bytes.Buffer
+	endHeader := make([]byte, 22)
+	binary.LittleEndian.PutUint32(endHeader[0:4], 0x06054b50)
+	binary.LittleEndian.PutUint16(endHeader[8:10], uint16(len(ordered)))
+	binary.LittleEndian.PutUint16(endHeader[10:12], uint16(len(ordered)))
+	binary.LittleEndian.PutUint32(endHeader[12:16], uint32(directory.Len()))
+	binary.LittleEndian.PutUint32(endHeader[16:20], uint32(body.Len()))
+	end.Write(endHeader)
+	return append(append(body.Bytes(), directory.Bytes()...), end.Bytes()...)
 }
 
 func zipArtifact(t *testing.T, files map[string][]byte) []byte {
